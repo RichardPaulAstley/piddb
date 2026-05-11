@@ -163,7 +163,7 @@
 									<img id="item-image" src="..." alt="Normal" class="item-thumbnail">
 									<div class="caption"><kbd>Normal Front</kbd></div>
 								</div>
-								<div class="imgplaceholder thumbnail">
+								<div class="imgplaceholder thumbnail sprite-back hidden">
 									<img id="item-image2" src="..." alt="Normal Back" class="item-thumbnail">
 									<div class="caption"><kbd>Normal Back</kbd></div>
 								</div>
@@ -173,7 +173,7 @@
 									<img id="item-simage" src="..." alt="Shiny" class="item-thumbnail">
 									<div class="caption"><kbd>Shiny Front</kbd></div>
 								</div>
-								<div class="imgplaceholder thumbnail">
+								<div class="imgplaceholder thumbnail sprite-back hidden">
 									<img id="item-simage2" src="..." alt="Shiny Back" class="item-thumbnail">
 									<div class="caption"><kbd>Shiny Back</kbd></div>
 								</div>
@@ -202,13 +202,13 @@
 								</tbody>
 							</table>
 							<h4>Locations</h4>
-							<table class="table table-striped table-condensed">
+							<table class="table table-striped table-condensed item-routes-table">
 								<thead>
 									<th>Region</th>
 									<th>Route</th>
 									<th class="num">Level</th>
-									<th class="num">Exp</th>
-									<th class="num">Team Exp</th>
+									<th>Condition</th>
+									<th class="num">%</th>
 								</thead>
 								<tbody id="item-routes" class="table-hover">
 								</tbody>
@@ -367,11 +367,9 @@
 										<th>Route</th>			<!-- 4 -->
 										<th>Min Lv</th>			<!-- 5 -->
 										<th>Max Lv</th>			<!-- 6 -->
-										<th>Min Exp</th>		<!-- 7 -->
-										<th>Max Exp</th>		<!-- 8 -->
-										<th>Min Team Exp</th>	<!-- 9 -->
-										<th>Max Team Exp</th>	<!-- 10 -->
-										<th>Catch</th>			<!-- 11 -->
+										<th>Condition</th>		<!-- 7 -->
+										<th>%</th>				<!-- 8 -->
+										<th>Catch</th>			<!-- 9 -->
 									</tr>
 								</thead>
 								<tbody></tbody>
@@ -384,11 +382,9 @@
 										<th></th>				<!-- 4 -->
 										<th>Min Lv</th>			<!-- 5 -->
 										<th>Max Lv</th>			<!-- 6 -->
-										<th>Min Exp</th>		<!-- 7 -->
-										<th>Max Exp</th>		<!-- 8 -->
-										<th>Min Team Exp</th>	<!-- 9 -->
-										<th>Max Team Exp</th>	<!-- 10 -->
-										<th>Catch</th>			<!-- 11 -->
+										<th>Condition</th>		<!-- 7 -->
+										<th>%</th>				<!-- 8 -->
+										<th>Catch</th>			<!-- 9 -->
 									</tr>
 								</tfoot>
 							</table>
@@ -484,7 +480,7 @@
 		<script src="typeModifiersTaken.js"></script>
 		<script src="locale_pkms.js"></script>
 
-		<script src="script.js?v=rg5es46gs5r"></script>
+		<script src="script.js?v=routes-compat-20260511"></script>
 		<!-- ONLY to recalculate type modifiers -->
 		<!-- <script src="calculateAllTypeModifiers.js?v=rg5es46gs5r"></script> -->
 

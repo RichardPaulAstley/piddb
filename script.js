@@ -53,6 +53,177 @@ var MapRoutes = [];
 
 var userPokedex = {};
 
+var normalizeEvolutionLevel = function(level) {
+  if (level === undefined || level === null || level === '') {
+    return '';
+  }
+
+  var parsedLevel = Number(level);
+  return isFinite(parsedLevel) ? parsedLevel : level;
+};
+
+var normalizeEvolutionList = function(evolutionData) {
+  var normalized = [];
+  var rawEvolutions = Array.isArray(evolutionData) ? evolutionData : [evolutionData];
+
+  for (var i = 0; i < rawEvolutions.length; i++) {
+    var evolutionEntry = rawEvolutions[i];
+
+    if (!evolutionEntry || typeof evolutionEntry.to !== 'string' || evolutionEntry.to.length === 0) {
+      continue;
+    }
+
+    var normalizedEntry = {
+      to: evolutionEntry.to,
+      level: normalizeEvolutionLevel(evolutionEntry.level)
+    };
+    var alreadyKnown = false;
+
+    for (var j = 0; j < normalized.length; j++) {
+      if (normalized[j].to === normalizedEntry.to && normalized[j].level === normalizedEntry.level) {
+        alreadyKnown = true;
+        break;
+      }
+    }
+
+    if (!alreadyKnown) {
+      normalized.push(normalizedEntry);
+    }
+  }
+
+  return normalized;
+};
+
+var getPokemonEvolutions = function(name) {
+  if (typeof EVOLUTIONS === 'undefined' || !EVOLUTIONS.hasOwnProperty(name)) {
+    return [];
+  }
+
+  return normalizeEvolutionList(EVOLUTIONS[name]);
+};
+
+var getPokemonPreEvolutions = function(name) {
+  var normalized = [];
+
+  if (typeof EVOLUTIONS === 'undefined') {
+    return normalized;
+  }
+
+  for (var pokefrom in EVOLUTIONS) {
+    if (!EVOLUTIONS.hasOwnProperty(pokefrom)) {
+      continue;
+    }
+
+    var evolutions = normalizeEvolutionList(EVOLUTIONS[pokefrom]);
+
+    for (var i = 0; i < evolutions.length; i++) {
+      if (evolutions[i].to !== name) {
+        continue;
+      }
+
+      var alreadyKnown = false;
+
+      for (var j = 0; j < normalized.length; j++) {
+        if (normalized[j].from === pokefrom && normalized[j].level === evolutions[i].level) {
+          alreadyKnown = true;
+          break;
+        }
+      }
+
+      if (!alreadyKnown) {
+        normalized.push({
+          from: pokefrom,
+          level: evolutions[i].level
+        });
+      }
+    }
+  }
+
+  return normalized;
+};
+
+var pokemonHasEvolutionTarget = function(pokemonData, targetName) {
+  if (!pokemonData || !Array.isArray(pokemonData.evolutions)) {
+    return false;
+  }
+
+  for (var i = 0; i < pokemonData.evolutions.length; i++) {
+    if (pokemonData.evolutions[i].to === targetName) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
+var pokemonHasPreEvolutionSource = function(pokemonData, sourceName) {
+  if (!pokemonData || !Array.isArray(pokemonData.evolvesFrom)) {
+    return false;
+  }
+
+  for (var i = 0; i < pokemonData.evolvesFrom.length; i++) {
+    if (pokemonData.evolvesFrom[i].from === sourceName) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
+var formatEvolutionLevelLabel = function(level, type) {
+  if (level === undefined || level === null || level === '') {
+    return '';
+  }
+
+  if (type === 'display') {
+    return ' <span class="tsmall">(' + level + ')</span>';
+  }
+
+  return ' (' + level + ')';
+};
+
+var formatEvolutionTargets = function(evolutions, type) {
+  if (!Array.isArray(evolutions) || evolutions.length === 0) {
+    return '';
+  }
+
+  var separator = type === 'display' ? '<br>' : ' | ';
+  var labels = [];
+
+  for (var i = 0; i < evolutions.length; i++) {
+    if (!evolutions[i] || typeof evolutions[i].to !== 'string') {
+      continue;
+    }
+
+    labels.push(evolutions[i].to + formatEvolutionLevelLabel(evolutions[i].level, type));
+  }
+
+  return labels.join(separator);
+};
+
+var formatEvolutionSources = function(evolutions, type) {
+  if (!Array.isArray(evolutions) || evolutions.length === 0) {
+    return '';
+  }
+
+  var separator = type === 'display' ? '<br>' : ' | ';
+  var labels = [];
+
+  for (var i = 0; i < evolutions.length; i++) {
+    if (!evolutions[i] || typeof evolutions[i].from !== 'string') {
+      continue;
+    }
+
+    if (type === 'display') {
+      labels.push('<span class="evolfrom">from</span> ' + evolutions[i].from + formatEvolutionLevelLabel(evolutions[i].level, type));
+    } else {
+      labels.push('from ' + evolutions[i].from + formatEvolutionLevelLabel(evolutions[i].level, type));
+    }
+  }
+
+  return labels.join(separator);
+};
+
 var formatPokemonArray = function() {
   loadingMessage.innerHTML += "<br>Searching Pokémons...";
   for (pdt in POKEDEX) {
@@ -115,15 +286,18 @@ var formatPokemonArray = function() {
     Pokemons[p_name].dpslv100 = (Pokemons[p_name].atklv100*(1/Pokemons[p_name].hardcappedspeedlv100))/100;
 
     /* Evolution */
-    if (EVOLUTIONS.hasOwnProperty(p_name)) {
-      Pokemons[p_name].evolution = EVOLUTIONS[p_name].to;
-      Pokemons[p_name].evollevel = EVOLUTIONS[p_name].level;
-    };
-    for (pokefrom in EVOLUTIONS) {
-      if (EVOLUTIONS[pokefrom].to == p_name) {
-        Pokemons[p_name].evolfrom = pokefrom;
-        Pokemons[p_name].evolfromlv = EVOLUTIONS[pokefrom].level;
-      }
+    var evolutions = getPokemonEvolutions(p_name);
+    if (evolutions.length > 0) {
+      Pokemons[p_name].evolutions = evolutions;
+      Pokemons[p_name].evolution = evolutions[0].to;
+      Pokemons[p_name].evollevel = evolutions[0].level;
+    }
+
+    var evolvesFrom = getPokemonPreEvolutions(p_name);
+    if (evolvesFrom.length > 0) {
+      Pokemons[p_name].evolvesFrom = evolvesFrom;
+      Pokemons[p_name].evolfrom = evolvesFrom[0].from;
+      Pokemons[p_name].evolfromlv = evolvesFrom[0].level;
     }
 
     /* Routes */
@@ -144,11 +318,11 @@ var formatPokemonFamily = function() {
         // should never come here
       } else {
         for (fam in PokemonFamily[i]) {
-          if (PokemonFamily[i][fam].evolution == poke) {
+          if (pokemonHasEvolutionTarget(PokemonFamily[i][fam], poke)) {
             PokemonFamily[i][poke] = Pokemons[poke];
             exists = true;
           }
-          if (PokemonFamily[i][fam].evolfrom == poke) {
+          if (pokemonHasPreEvolutionSource(PokemonFamily[i][fam], poke)) {
             PokemonFamily[i][poke] = Pokemons[poke];
             exists = true;
           }
@@ -163,7 +337,9 @@ var formatPokemonFamily = function() {
   }
 }
 
-var formatPokemonCity = function(name, type, region, routename, min, max, catchrate) {
+var formatPokemonCity = function(name, type, region, routename, min, max, catchrate, condition, chance) {
+  var routeCondition = condition || 'Default';
+  var encounterChance = isFiniteRouteNumber(chance) ? chance : 0;
   var PokemonCity = {
     name   : name,
     className   : name.replace(' ','_'),
@@ -181,6 +357,8 @@ var formatPokemonCity = function(name, type, region, routename, min, max, catchr
     expteammax : ((Pokemons[name].bexp / 100) + (max / 10)).toFixed(3),
     region : region,
     route  : routename,
+    condition : routeCondition,
+    chance : encounterChance,
     catch  : catchrate,
   };
 
@@ -199,6 +377,8 @@ var formatPokemonCity = function(name, type, region, routename, min, max, catchr
     routename: routename,
     lvmin    : min,
     lvmax    : max,
+    condition: routeCondition,
+    chance   : encounterChance,
     expmin   : formatNumber((Pokemons[name].bexp / 16) + (min * 3),0,2),
     expmax   : formatNumber((Pokemons[name].bexp / 16) + (max * 3),0,2),
     expteammin   : formatNumber((Pokemons[name].bexp / 100) + (min / 10),0,2),
@@ -208,6 +388,227 @@ var formatPokemonCity = function(name, type, region, routename, min, max, catchr
 
 
   return PokemonCity;
+};
+
+var isFiniteRouteNumber = function(value) {
+  return typeof value === 'number' && isFinite(value);
+};
+
+var routeConditionSuffixLookup = null;
+
+var getRouteConditionGroups = function() {
+  if (typeof ROUTE_CONDITION_GROUPS === 'undefined' || !Array.isArray(ROUTE_CONDITION_GROUPS)) {
+    return [];
+  }
+
+  return ROUTE_CONDITION_GROUPS;
+};
+
+var getRouteConditionSuffixLookup = function() {
+  if (routeConditionSuffixLookup) {
+    return routeConditionSuffixLookup;
+  }
+
+  routeConditionSuffixLookup = {};
+  var groups = getRouteConditionGroups();
+
+  for (var i = 0; i < groups.length; i++) {
+    if (!groups[i] || !Array.isArray(groups[i].options)) {
+      continue;
+    }
+
+    for (var j = 0; j < groups[i].options.length; j++) {
+      var option = groups[i].options[j];
+      var suffix = option && typeof option.suffix === 'string' ? option.suffix : '';
+
+      if (suffix.length === 0) {
+        continue;
+      }
+
+      routeConditionSuffixLookup[suffix] = {
+        label: option.label || option.value || suffix,
+      };
+    }
+  }
+
+  return routeConditionSuffixLookup;
+};
+
+var getRouteConditionLabel = function(routeKey) {
+  if (typeof routeKey !== 'string' || routeKey.indexOf('pokes') !== 0) {
+    return 'Default';
+  }
+
+  var raw = routeKey.slice(5);
+  if (raw.length === 0) {
+    return 'Default';
+  }
+
+  var suffixLookup = getRouteConditionSuffixLookup();
+  var tokens = raw.split('_').filter(Boolean);
+  var labels = [];
+
+  for (var i = 0; i < tokens.length; i++) {
+    labels.push(suffixLookup[tokens[i]] ? suffixLookup[tokens[i]].label : tokens[i]);
+  }
+
+  return labels.length > 0 ? labels.join(', ') : 'Default';
+};
+
+var formatEncounterChance = function(chance) {
+  if (!isFiniteRouteNumber(chance)) {
+    return '';
+  }
+
+  return chance.toLocaleString('en-US', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2
+  }) + '%';
+};
+
+var buildRouteEncounterTable = function(route, routeKey) {
+  var packed = Array.isArray(route && route[routeKey]) ? route[routeKey] : [];
+  var minFromPacked = Number(packed[0]);
+  var maxFromPacked = Number(packed[1]);
+  var hasPackedLevels = isFiniteRouteNumber(minFromPacked) && isFiniteRouteNumber(maxFromPacked);
+  var minLevel = hasPackedLevels ? minFromPacked : (isFiniteRouteNumber(route && route.minLevel) ? route.minLevel : 1);
+  var maxLevel = hasPackedLevels ? maxFromPacked : (isFiniteRouteNumber(route && route.maxLevel) ? route.maxLevel : minLevel);
+  var startIndex = hasPackedLevels ? 2 : 0;
+  var hasWeightedEntries = false;
+
+  for (var i = startIndex + 1; i < packed.length; i += 2) {
+    var weight = Number(packed[i]);
+    if (isFiniteRouteNumber(weight) && weight > 0) {
+      hasWeightedEntries = true;
+      break;
+    }
+  }
+
+  var encounterNames = [];
+  var encounterWeights = {};
+  var totalWeight = 0;
+
+  if (hasWeightedEntries) {
+    for (var i = startIndex; i < packed.length; i += 2) {
+      var weightedPokeName = packed[i];
+      var weightedPokeChance = Number(packed[i + 1]);
+
+      if (typeof weightedPokeName !== 'string' || !isFiniteRouteNumber(weightedPokeChance) || weightedPokeChance <= 0) {
+        continue;
+      }
+
+      if (!encounterWeights.hasOwnProperty(weightedPokeName)) {
+        encounterNames.push(weightedPokeName);
+        encounterWeights[weightedPokeName] = 0;
+      }
+
+      encounterWeights[weightedPokeName] += weightedPokeChance;
+      totalWeight += weightedPokeChance;
+    }
+  } else {
+    for (var i = startIndex; i < packed.length; i++) {
+      var pokeName = packed[i];
+
+      if (typeof pokeName !== 'string') {
+        continue;
+      }
+
+      if (!encounterWeights.hasOwnProperty(pokeName)) {
+        encounterNames.push(pokeName);
+        encounterWeights[pokeName] = 0;
+      }
+
+      encounterWeights[pokeName] += 1;
+      totalWeight += 1;
+    }
+  }
+
+  var encounters = [];
+  for (var i = 0; i < encounterNames.length; i++) {
+    var encounterName = encounterNames[i];
+    var encounterWeight = encounterWeights[encounterName];
+
+    encounters.push({
+      name: encounterName,
+      weight: encounterWeight,
+      chance: totalWeight > 0 ? (encounterWeight * 100 / totalWeight) : 0,
+    });
+  }
+
+  return {
+    minLevel: minLevel,
+    maxLevel: maxLevel,
+    pokes: encounterNames,
+    encounters: encounters,
+  };
+};
+
+var getRouteEncounterVariants = function(route) {
+  var variants = [];
+
+  if (!route || typeof route !== 'object') {
+    return variants;
+  }
+
+  var routeKeys = Object.keys(route).filter(function(key) {
+    return key.indexOf('pokes') === 0 && Array.isArray(route[key]) && route[key].length > 0;
+  });
+
+  for (var i = 0; i < routeKeys.length; i++) {
+    var routeKey = routeKeys[i];
+    var encounterTable = buildRouteEncounterTable(route, routeKey);
+
+    if (encounterTable.encounters.length === 0) {
+      continue;
+    }
+
+    variants.push({
+      key: routeKey,
+      condition: getRouteConditionLabel(routeKey),
+      minLevel: encounterTable.minLevel,
+      maxLevel: encounterTable.maxLevel,
+      pokes: encounterTable.pokes,
+      encounters: encounterTable.encounters,
+    });
+  }
+
+  return variants;
+};
+
+var normalizeRouteData = function(route) {
+  var normalized = {
+    name: route && route.name ? route.name : '',
+    minLevel: isFiniteRouteNumber(route && route.minLevel) ? route.minLevel : null,
+    maxLevel: isFiniteRouteNumber(route && route.maxLevel) ? route.maxLevel : null,
+    pokes: []
+  };
+
+  if (!route || typeof route !== 'object') {
+    return normalized;
+  }
+
+  var routeVariants = getRouteEncounterVariants(route);
+
+  for (var i = 0; i < routeVariants.length; i++) {
+    normalized.minLevel = normalized.minLevel === null ? routeVariants[i].minLevel : Math.min(normalized.minLevel, routeVariants[i].minLevel);
+    normalized.maxLevel = normalized.maxLevel === null ? routeVariants[i].maxLevel : Math.max(normalized.maxLevel, routeVariants[i].maxLevel);
+
+    for (var j = 0; j < routeVariants[i].pokes.length; j++) {
+      if (normalized.pokes.indexOf(routeVariants[i].pokes[j]) === -1) {
+        normalized.pokes.push(routeVariants[i].pokes[j]);
+      }
+    }
+  }
+
+  if (normalized.minLevel === null) {
+    normalized.minLevel = isFiniteRouteNumber(route.minLevel) ? route.minLevel : 1;
+  }
+
+  if (normalized.maxLevel === null) {
+    normalized.maxLevel = isFiniteRouteNumber(route.maxLevel) ? route.maxLevel : normalized.minLevel;
+  }
+
+  return normalized;
 };
 
 var PokemonsToPokedex = function() {
@@ -253,15 +654,19 @@ var buildPokeByCityData = function() {
 
     for (city in ROUTES[region]) {
       var pc_route = city;
-      var pc_routename = ROUTES[region][city].name;
-      var pc_minlv = ROUTES[region][city].minLevel;
-      var pc_maxlv = ROUTES[region][city].maxLevel;
+      var pc_routename = ROUTES[region][city] && ROUTES[region][city].name ? ROUTES[region][city].name : pc_route;
+      var routeVariants = getRouteEncounterVariants(ROUTES[region][city]);
 
-      for(var i = 0; i < ROUTES[region][city].pokes.length; i++){
-        var pc_name = ROUTES[region][city].pokes[i];
-        var pc_type = Pokemons[pc_name].type1;
-        var pc_catch = Pokemons[pc_name].catch;
-        PokemonsPerCity.push(formatPokemonCity(pc_name, pc_type, pc_region, pc_routename, pc_minlv, pc_maxlv, pc_catch));
+      for (var i = 0; i < routeVariants.length; i++) {
+        for (var j = 0; j < routeVariants[i].encounters.length; j++) {
+          var pc_name = routeVariants[i].encounters[j].name;
+          if (!Pokemons.hasOwnProperty(pc_name)) {
+            continue;
+          }
+          var pc_type = Pokemons[pc_name].type1;
+          var pc_catch = Pokemons[pc_name].catch;
+          PokemonsPerCity.push(formatPokemonCity(pc_name, pc_type, pc_region, pc_routename, routeVariants[i].minLevel, routeVariants[i].maxLevel, pc_catch, routeVariants[i].condition, routeVariants[i].encounters[j].chance));
+        }
       }
     }
   }
@@ -273,16 +678,20 @@ var formatMapRoutes = function() {
   loadingMessage.innerHTML += "<br>Creating the Pokémap...";
   for (region in ROUTES) {
     for (routename in ROUTES[region]) {
+      var normalizedRoute = normalizeRouteData(ROUTES[region][routename]);
       var thisRoute = {
         region    : region,
-        routename : ROUTES[region][routename].name,
-        minLevel  : ROUTES[region][routename].minLevel,
-        maxLevel  : ROUTES[region][routename].maxLevel,
+        routename : normalizedRoute.name,
+        minLevel  : normalizedRoute.minLevel,
+        maxLevel  : normalizedRoute.maxLevel,
         poketypes : {},
         poketypenames : [],
       };
-      for (var i = 0; i < ROUTES[region][routename].pokes.length; i++) {
-        var thisPoketype = Pokemons[ROUTES[region][routename].pokes[i]].type1;
+      for (var i = 0; i < normalizedRoute.pokes.length; i++) {
+        if (!Pokemons.hasOwnProperty(normalizedRoute.pokes[i])) {
+          continue;
+        }
+        var thisPoketype = Pokemons[normalizedRoute.pokes[i]].type1;
         if (thisRoute.poketypes.hasOwnProperty(thisPoketype)) {
           thisRoute.poketypes[thisPoketype].pkm++;
         } else {
@@ -291,8 +700,8 @@ var formatMapRoutes = function() {
             pkm : 1,
           };
           // if this is the only pokemon of the route, add his name
-          if (ROUTES[region][routename].pokes.length == 1) {
-            thisRoute.poketypes[thisPoketype].pkmname = Pokemons[ROUTES[region][routename].pokes[i]].name;
+          if (normalizedRoute.pokes.length == 1) {
+            thisRoute.poketypes[thisPoketype].pkmname = Pokemons[normalizedRoute.pokes[i]].name;
           } 
         }
       }
@@ -439,22 +848,22 @@ $(document).ready(function() {
         name: "Max Level", data: "lvmax", className: 'num',
       },
       { /* 7 (Col 6) */
-        name: "Min Exp", data: "expmin", className: 'num', render: $.fn.dataTable.render.number( ',', '.', 2, '', 'EXP')
+        name: "Condition", data: "condition"
       },
       { /* 8 (Col 7) */
-        name: "Max Exp", data: "expmax", className: 'num', render: $.fn.dataTable.render.number( ',', '.', 2, '', 'EXP')
+        name: "%", data: "chance", className: 'num',
+        render: function ( data, type, full ) {
+          if (type === 'display' || type === 'filter') {
+            return formatEncounterChance(data);
+          }
+          return isFiniteRouteNumber(data) ? data : 0;
+        }
       },
-      { /* 9 (Col 8) */
-        name: "Min Team Exp", data: "expteammin", className: 'num', render: $.fn.dataTable.render.number( ',', '.', 2, '', 'EXP')
-      },
-      { /* 10 (Col 9) */
-        name: "Max Team Exp", data: "expteammax", className: 'num', render: $.fn.dataTable.render.number( ',', '.', 2, '', 'EXP')
-      },
-      { /* 11 (Col 9) */
+      { /* 9 (Col 9) */
         name: "Catch", data: "catch", className: 'num',
       },
     ], 
-    order: [[ 7, 'desc' ], [ 5, 'desc' ]],
+    order: [[ 8, 'desc' ], [ 5, 'desc' ]],
     aoColumnDefs: [
       {
         "aTargets": [1],
@@ -475,7 +884,7 @@ $(document).ready(function() {
         }
       },
       {
-        "aTargets": [11],
+        "aTargets": [9],
         "mData": "catch",
         "mRender": function ( data, type, full ) {
           var catchrate = '';
@@ -693,15 +1102,12 @@ $(document).ready(function() {
         "aTargets": [10],
         "mData": "evolution",
         "mRender": function ( data, type, full ) {
-          if (data) {
-            return data + ' <span class="tsmall">('+full.evollevel+')</span>';
-          } else {
-            if (full.hasOwnProperty('evolfrom')) {
-              return '<span class="evolfrom">from</span> ' + full.evolfrom + ''+ ' <span class="tsmall">('+full.evolfromlv+')</span>';
-            } else {
-              return '';
-            }
+          var evolutionText = formatEvolutionTargets(full.evolutions, type);
+          if (evolutionText.length > 0) {
+            return evolutionText;
           }
+
+          return formatEvolutionSources(full.evolvesFrom, type);
         }
       },
       {
@@ -1838,8 +2244,8 @@ function formatProperty(propertyType, propertyData, orientation, parentname) {
             })+'%'+cella;
       else
         tHtml += cellb+'Not catchable'+cella;
-      if (propertyData[poke].evolution)
-        tHtml += cellb+propertyData[poke].evolution+' ('+propertyData[poke].evollevel+')'+cella;
+      if (Array.isArray(propertyData[poke].evolutions) && propertyData[poke].evolutions.length > 0)
+        tHtml += cellb+formatEvolutionTargets(propertyData[poke].evolutions, 'display')+cella;
       else
         tHtml += cellb+cella;
       tHtml += '</tr>';
@@ -1858,8 +2264,8 @@ function formatProperty(propertyType, propertyData, orientation, parentname) {
           tHtml += cellb+'<a class="pokemonregion" href="#" data-pokemon="'+propertyData.name+'" data-region="'+region+'">'+region+'</a>'+cella;
           tHtml += cellb+'<a class="pokemonroute" href="#"  data-region="'+region+'" data-route="'+propertyData.routes[region][i].routename+'">'+propertyData.routes[region][i].routename+'</a>'+cella;
           tHtml += cellbnum+propertyData.routes[region][i].lvmin+' - '+propertyData.routes[region][i].lvmax+cella;
-          tHtml += cellbnum+propertyData.routes[region][i].expmin+' - '+propertyData.routes[region][i].expmax+cella;
-          tHtml += cellbnum+propertyData.routes[region][i].expteammin+' - '+propertyData.routes[region][i].expteammax+cella;
+          tHtml += cellb+(propertyData.routes[region][i].condition || 'Default')+cella;
+          tHtml += cellbnum+formatEncounterChance(propertyData.routes[region][i].chance)+cella;
           tHtml += '</tr>';
         };
       }
@@ -1987,7 +2393,7 @@ function printDescription(className) {
       /* Poke Type bonuses */
 
       /* Pokemon Forms */
-      if (descData.evolution || descData.evolfrom) {
+      if ((Array.isArray(descData.evolutions) && descData.evolutions.length > 0) || (Array.isArray(descData.evolvesFrom) && descData.evolvesFrom.length > 0)) {
         var thisFamily = {};
         for (fam in PokemonFamily) {
           if (PokemonFamily[fam].hasOwnProperty(descData.name)) {
